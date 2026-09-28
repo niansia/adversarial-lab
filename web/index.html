@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Adversarial Lab · fool a neural network in your browser</title>
+<meta name="description" content="Attack a handwritten-digit classifier with FGSM and PGD, watch the prediction flip, and compare it with an adversarially trained model. Everything runs on your CPU in the browser.">
+<link rel="canonical" href="https://niansia.github.io/lab/adversarial/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Adversarial Lab · fool a neural network in your browser">
+<meta property="og:description" content="FGSM and PGD attacks, decision maps and robustness curves for a standard and an adversarially trained model, running on your own device.">
+<meta property="og:url" content="https://niansia.github.io/lab/adversarial/">
+<meta property="og:image" content="https://niansia.github.io/assets/og/adversarial-demo.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#07080b">
+<link rel="icon" href="https://niansia.github.io/assets/icons/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+:root{--bg:#07080b;--panel:#0e1117;--panel2:#141821;--line:#ffffff17;--ink:#eef1f5;--dim:#8b93a1;--blue:#7cc4ff;--amber:#ffb454;--ok:#6fdc98;--bad:#ff7a8a;--violet:#c3a6ff;
+  --mono:'JetBrains Mono','Noto Sans TC',ui-monospace,monospace;--ease:cubic-bezier(.22,1,.36,1);}
+*{box-sizing:border-box;}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,'Noto Sans TC',system-ui,sans-serif;}
+body{min-height:100vh;background:radial-gradient(1100px 560px at 85% -12%,#3a1a2855,transparent 60%),radial-gradient(900px 500px at -10% 10%,#16223a55,transparent 60%),var(--bg);}
+@view-transition{navigation:auto;}
+@media(prefers-reduced-motion:reduce){@view-transition{navigation:none;}*{animation:none!important;transition:none!important;}}
+a{color:var(--blue);text-decoration:none;}a:hover{text-decoration:underline;}
+button{font:inherit;color:inherit;}
+.wrap{max-width:1240px;margin:0 auto;padding:18px 20px 60px;}
+.top{display:flex;align-items:center;gap:12px;font:500 12px var(--mono);color:var(--dim);}
+.top b{color:var(--ink);font-weight:500;}.top .sp{flex:1;}
+.btn{font:500 12px var(--mono);color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;text-decoration:none;transition:border-color .2s,transform .2s var(--ease);}
+.btn:hover{border-color:#ffffff40;text-decoration:none;}
+.btn.primary{background:linear-gradient(135deg,#b3264a,#ff7a8a 60%,#ffb454);border-color:transparent;color:#1a0509;font-weight:700;}
+.btn.primary:hover{transform:translateY(-1px);}
+.btn:disabled{opacity:.45;cursor:default;transform:none;}
+.btn kbd{font:10px var(--mono);padding:1px 5px;border-radius:5px;background:#0006;border:1px solid #0003;}
+h1{margin:34px 0 8px;font:800 clamp(28px,4.2vw,50px)/1.08 Inter,'Noto Sans TC',sans-serif;letter-spacing:-.025em;}
+h1 em{font-style:normal;background:linear-gradient(90deg,var(--bad),var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent;}
+.lede{max-width:780px;color:var(--dim);font-size:15px;line-height:1.75;margin:0 0 22px;}
+.lede b{color:var(--ink);font-weight:600;}
+.warn{display:none;margin:0 0 16px;padding:10px 14px;border-radius:12px;border:1px dashed var(--amber);color:var(--amber);font:500 12.5px/1.6 var(--mono);}
+.warn.on{display:block;}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;}
+.panel h2{margin:0 0 12px;font:600 12px var(--mono);color:var(--dim);letter-spacing:.04em;display:flex;align-items:center;gap:8px;}
+.panel h2:before{content:'▍';color:var(--bad);}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start;}
+@media(max-width:1020px){.grid{grid-template-columns:minmax(0,1fr);}}
+.panel{min-width:0;}
+@media(max-width:720px){.top>span:not(.sp){display:none;}.wrap{padding:14px 14px 48px;}}
+
+/* stage: x + δ = x' */
+.stage{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:10px;align-items:start;}
+.op{align-self:center;margin-top:-34px;font:300 30px var(--mono);color:var(--dim);}
+.cell{min-width:0;}
+.canvas-box{position:relative;aspect-ratio:1;border-radius:14px;overflow:hidden;background:#000;border:1px solid var(--line);}
+.canvas-box canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;display:block;}
+#draw{cursor:crosshair;touch-action:none;image-rendering:auto;}
+.canvas-box .hint{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:14px;color:var(--dim);font:500 12px/1.6 var(--mono);pointer-events:none;transition:opacity .3s;}
+.cap{margin-top:8px;font:500 11.5px/1.5 var(--mono);color:var(--dim);display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap;}
+.cap b{color:var(--ink);font-weight:700;}
+.pred{display:flex;align-items:baseline;gap:8px;margin-top:4px;}
+.pred strong{font:700 28px/1 var(--mono);}
+.pred span{font:500 12px var(--mono);color:var(--dim);}
+.pred.flip strong{color:var(--bad);text-shadow:0 0 18px #ff7a8a88;}
+.pred.hold strong{color:var(--ok);}
+.stamp{position:absolute;right:8px;top:8px;padding:3px 8px;border-radius:6px;font:700 11px var(--mono);letter-spacing:.08em;background:var(--bad);color:#1a0509;transform:rotate(4deg) scale(.6);opacity:0;transition:all .35s var(--ease);pointer-events:none;}
+.stamp.on{opacity:1;transform:rotate(4deg) scale(1);}
+.stamp.hold{background:var(--ok);color:#03150b;}
+.glitch{animation:glitch .5s steps(2) 1;}
+@keyframes glitch{0%{filter:none;transform:none;}20%{filter:drop-shadow(3px 0 #ff2f5b) drop-shadow(-3px 0 #2fd4ff);transform:translate(2px,-1px);}40%{transform:translate(-3px,1px) skewX(4deg);}60%{filter:drop-shadow(-2px 0 #ff2f5b) drop-shadow(2px 0 #2fd4ff);transform:translate(1px,0);}100%{filter:none;transform:none;}}
+.mini-seg{display:flex;gap:4px;margin-top:6px;}
+.mini-seg button{flex:1;padding:4px 6px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);font:500 10.5px var(--mono);cursor:pointer;}
+.mini-seg button[aria-pressed="true"]{color:var(--ink);border-color:#ffffff40;}
+.tools{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+.samples{display:flex;gap:6px;overflow-x:auto;padding:4px 2px 6px;margin-top:12px;scrollbar-width:thin;}
+.samples button{flex:none;width:42px;height:42px;padding:0;border-radius:8px;border:1px solid var(--line);background:#000;cursor:pointer;position:relative;overflow:hidden;transition:transform .2s var(--ease),border-color .2s;}
+.samples button:hover{transform:translateY(-2px);border-color:#ffffff40;}
+.samples canvas{width:100%;height:100%;image-rendering:pixelated;display:block;}
+.samples button[aria-pressed="true"]{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue);}
+
+/* controls */
+.controls{margin-top:14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;}
+@media(max-width:720px){.controls{grid-template-columns:1fr;}.stage{grid-template-columns:1fr 1fr;}.op{display:none;}.stage .cell:first-child{grid-column:1/-1;max-width:260px;}}
+.ctl label,.ctl .lbl{display:flex;justify-content:space-between;font:500 11.5px var(--mono);color:var(--dim);margin-bottom:6px;}
+.ctl label b,.ctl .lbl b{color:var(--ink);}
+.seg{display:inline-flex;width:100%;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+.seg button{flex:1;font:500 12px var(--mono);color:var(--dim);background:var(--panel2);border:0;padding:8px 10px;cursor:pointer;transition:background .2s,color .2s;}
+.seg button+button{border-left:1px solid var(--line);}
+.seg button[aria-pressed="true"]{color:#1a0509;background:var(--amber);font-weight:700;}
+.seg.models button[data-model="robust"][aria-pressed="true"]{background:var(--ok);color:#03150b;}
+.seg.models button[data-model="standard"][aria-pressed="true"]{background:var(--blue);color:#041018;}
+input[type=range]{width:100%;accent-color:var(--bad);}
+.targets{display:flex;gap:4px;flex-wrap:wrap;}
+.targets button{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);font:700 13px var(--mono);cursor:pointer;}
+.targets button[aria-pressed="true"]{color:#1a0509;background:var(--bad);border-color:transparent;}
+.targets button:disabled{opacity:.3;cursor:default;}
+.ctl.off{opacity:.4;pointer-events:none;}
+.run{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+.run .note{font:500 11px var(--mono);color:var(--dim);}
+.ctl label.check{justify-content:flex-start;margin:0;}
+.check{display:inline-flex;align-items:center;gap:6px;font:500 11.5px var(--mono);color:var(--dim);cursor:pointer;}
+
+/* aside */
+.bars{display:grid;gap:5px;}
+.bar{display:grid;grid-template-columns:18px 1fr 46px;gap:8px;align-items:center;font:500 12px var(--mono);}
+.bar b{text-align:center;border-radius:5px;}
+.bar.true b{background:#ffffff14;box-shadow:inset 0 0 0 1px #ffffff40;}
+.bar.target b{color:var(--bad);}
+.track{position:relative;height:14px;border-radius:5px;background:#ffffff08;overflow:hidden;}
+.track i,.track s{position:absolute;left:0;top:0;bottom:0;border-radius:5px;transition:width .12s linear;}
+.track i{background:#ffffff26;}
+.track s{top:4px;bottom:4px;background:linear-gradient(90deg,var(--bad),var(--amber));}
+.bar em{font-style:normal;text-align:right;color:var(--dim);font-size:11px;}
+.legend{display:flex;gap:12px;margin:8px 0 0;font:500 10.5px var(--mono);color:var(--dim);}
+.legend i{display:inline-block;width:14px;height:6px;border-radius:3px;margin-right:5px;vertical-align:1px;}
+.traj{margin-top:14px;}
+.traj svg{width:100%;height:120px;display:block;}
+.metrics{margin:14px 0 0;display:grid;grid-template-columns:1fr auto;gap:6px 10px;font:500 12px var(--mono);}
+.metrics dt{color:var(--dim);}.metrics dd{margin:0;text-align:right;}
+.other{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);font:500 12px/1.6 var(--mono);color:var(--dim);}
+.other b{color:var(--ink);}
+
+/* lower row */
+.lower{margin-top:18px;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;}
+@media(max-width:1020px){.lower{grid-template-columns:minmax(0,1fr);}}
+.maps{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.map{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;background:#000;border:1px solid var(--line);}
+.map canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;}
+.map svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
+.map .tag{position:absolute;left:8px;top:8px;font:600 11px var(--mono);padding:3px 8px;border-radius:99px;background:#000b;border:1px solid var(--line);}
+.map .tag.robust{color:var(--ok);}.map .tag.standard{color:var(--blue);}
+.map .verdict{position:absolute;left:8px;bottom:8px;right:8px;font:500 11px/1.4 var(--mono);color:var(--ink);text-shadow:0 1px 4px #000;}
+.map .idle[hidden]{display:none;}
+.map .idle{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:14px;font:500 12px/1.6 var(--mono);color:var(--dim);background:repeating-linear-gradient(135deg,#0b0e14 0 12px,#0d1118 12px 24px);}
+.maprow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;}
+.progress{flex:1;min-width:120px;height:4px;border-radius:9px;background:#ffffff14;overflow:hidden;}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--bad));transition:width .25s;}
+.keys{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:10px;font:500 10.5px var(--mono);color:var(--dim);}
+.keys span{display:inline-flex;align-items:center;gap:4px;}.keys i{width:10px;height:10px;border-radius:3px;}
+.explain{margin:10px 0 0;font-size:12.5px;line-height:1.7;color:var(--dim);}
+.explain b{color:var(--ink);font-weight:600;}
+#curves{width:100%;height:auto;display:block;}
+#curves text{font:500 10.5px 'JetBrains Mono',monospace;fill:var(--dim);}
+.ctable{margin-top:10px;width:100%;border-collapse:collapse;font:500 11.5px var(--mono);}
+.ctable th,.ctable td{padding:5px 6px;text-align:right;border-bottom:1px dashed var(--line);}
+.ctable th:first-child,.ctable td:first-child{text-align:left;color:var(--dim);}
+.ctable th{color:var(--dim);font-weight:500;}
+.notes{margin-top:22px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
+@media(max-width:860px){.notes{grid-template-columns:1fr;}}
+.notes div{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.7;color:var(--dim);}
+.notes b{display:block;color:var(--ink);font-size:14px;margin-bottom:4px;}
+.notes code{font:12px var(--mono);color:var(--ink);background:#ffffff0d;padding:1px 5px;border-radius:5px;}
+.foot{margin-top:28px;font:400 12px var(--mono);color:var(--dim);display:flex;flex-wrap:wrap;gap:14px;}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><b>Adversarial Lab</b><span>· lab</span><span class="sp"></span><a class="btn" id="back" href="/#research">←</a><button class="btn" id="lang" type="button">EN</button><a class="btn" href="https://github.com/niansia/adversarial-lab" target="_blank" rel="noopener">GitHub ↗</a></div>
+  <h1 id="h1"></h1>
+  <p class="lede" id="lede"></p>
+  <p class="warn" id="warn"></p>
+
+  <div class="grid">
+    <section class="panel">
+      <h2 id="stage-h"></h2>
+      <div class="stage">
+        <div class="cell">
+          <div class="canvas-box"><canvas id="draw" width="280" height="280" aria-describedby="draw-hint"></canvas><div class="hint" id="draw-hint"></div></div>
+          <div class="cap"><span id="cap-x"></span></div>
+          <div class="pred" id="pred-clean"><strong>–</strong><span></span></div>
+        </div>
+        <div class="op" aria-hidden="true">+</div>
+        <div class="cell">
+          <div class="canvas-box"><canvas id="delta" width="28" height="28"></canvas></div>
+          <div class="mini-seg" role="group" id="dview"><button type="button" data-dview="delta" aria-pressed="true"></button><button type="button" data-dview="grad" aria-pressed="false"></button></div>
+          <div class="cap"><span id="cap-d"></span></div>
+        </div>
+        <div class="op" aria-hidden="true">=</div>
+        <div class="cell">
+          <div class="canvas-box" id="adv-box"><canvas id="adv" width="28" height="28"></canvas><span class="stamp" id="stamp"></span></div>
+          <div class="cap"><span id="cap-a"></span></div>
+          <div class="pred" id="pred-adv"><strong>–</strong><span></span></div>
+        </div>
+      </div>
+      <div class="tools"><button class="btn" id="clear" type="button"></button><button class="btn" id="random" type="button"></button></div>
+      <div class="samples" id="samples" role="group"></div>
+
+      <div class="controls">
+        <div class="ctl"><div class="lbl" id="l-model"></div><div class="seg models" role="group" id="models"><button type="button" data-model="standard" aria-pressed="true"></button><button type="button" data-model="robust" aria-pressed="false"></button></div></div>
+        <div class="ctl"><div class="lbl" id="l-attack"></div><div class="seg" role="group" id="attacks"><button type="button" data-attack="fgsm" aria-pressed="false">FGSM</button><button type="button" data-attack="pgd" aria-pressed="true">PGD</button><button type="button" data-attack="targeted" aria-pressed="false"></button></div></div>
+        <div class="ctl"><label for="eps"><span id="l-eps"></span><b id="v-eps"></b></label><input type="range" id="eps" min="0" max="0.4" step="0.01" value="0.2"></div>
+        <div class="ctl" id="steps-ctl"><label for="steps"><span id="l-steps"></span><b id="v-steps"></b></label><input type="range" id="steps" min="1" max="100" step="1" value="40"></div>
+        <div class="ctl off" id="target-ctl"><div class="lbl" id="l-target"></div><div class="targets" id="targets" role="group"></div></div>
+        <div class="ctl"><div class="lbl" id="l-opts"></div><label class="check"><input type="checkbox" id="animate" checked><span id="l-animate"></span></label></div>
+        <div class="run"><button class="btn primary" id="go" type="button"><span id="go-t"></span><kbd>Enter</kbd></button><button class="btn" id="reset" type="button"></button><span class="note" id="run-note"></span></div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <h2 id="probs-h"></h2>
+      <div class="bars" id="bars"></div>
+      <div class="legend"><span><i style="background:#ffffff26"></i><span id="lg-clean"></span></span><span><i style="background:linear-gradient(90deg,#ff7a8a,#ffb454)"></i><span id="lg-adv"></span></span></div>
+      <div class="traj"><h2 id="traj-h"></h2><svg id="traj" viewBox="0 0 300 120" preserveAspectRatio="none" aria-hidden="true"></svg></div>
+      <dl class="metrics" id="metrics"></dl>
+      <div class="other" id="other"></div>
+    </aside>
+  </div>
+
+  <div class="lower">
+    <section class="panel">
+      <h2 id="map-h"></h2>
+      <div class="maps">
+        <div class="map" data-map="standard"><canvas width="28" height="28"></canvas><svg viewBox="0 0 100 100" preserveAspectRatio="none"></svg><span class="tag standard"></span><span class="verdict"></span><div class="idle"></div></div>
+        <div class="map" data-map="robust"><canvas width="28" height="28"></canvas><svg viewBox="0 0 100 100" preserveAspectRatio="none"></svg><span class="tag robust"></span><span class="verdict"></span><div class="idle"></div></div>
+      </div>
+      <div class="maprow"><button class="btn" id="map-go" type="button"></button><div class="progress"><i id="map-bar"></i></div><span class="note" id="map-note" style="font:500 11px var(--mono);color:var(--dim)"></span></div>
+      <div class="keys" id="keys"></div>
+      <p class="explain" id="map-explain"></p>
+    </section>
+    <section class="panel">
+      <h2 id="curve-h"></h2>
+      <svg id="curves" viewBox="0 0 520 330" role="img"></svg>
+      <table class="ctable" id="ctable"></table>
+      <p class="explain" id="curve-explain"></p>
+    </section>
+  </div>
+
+  <div class="notes" id="notes"></div>
+  <div class="foot"><span id="foot-l"></span><a href="https://github.com/niansia/adversarial-lab">github.com/niansia/adversarial-lab</a><span id="rt"></span><a href="https://niansia.github.io/lab/adversarial/">live demo · niansia.github.io</a></div>
+</div>
+<script src="./advnet.js"></script>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const q = new URLSearchParams(location.search);
+let L = q.get('lang') || (/^zh-(cn|sg)/i.test(navigator.language) ? 'zh-CN' : /^zh/i.test(navigator.language) ? 'zh-TW' : 'en');
+if (!['en', 'zh-TW', 'zh-CN'].includes(L)) L = 'en';
+const COPY = {
+  en: {h1: 'Fool a neural network <em>with noise you can barely see</em>', lede: 'Draw a digit or pick one from the MNIST test set, then attack the classifier with <b>FGSM</b> or <b>PGD</b>: tiny, bounded changes to every pixel, chosen by following the model’s own gradient. Try the same attack on a model trained <b>against</b> such attacks and see what changes. <b>Everything runs on your CPU in this tab; nothing is uploaded.</b>',
+    untrained: 'Preview: these models are not trained yet (random weights). Predictions are meaningless until training finishes.',
+    stage: 'input + perturbation = adversarial example', hint: 'draw a digit here\n(or pick one below)', capX: 'x · your input', capD: 'δ · change per pixel', capA: 'x + δ · what the model sees',
+    dDelta: 'δ', dGrad: 'gradient', clear: 'Clear', random: 'Random digit', model: 'model under attack', standard: 'Standard', robust: 'Robust (PGD-AT)',
+    attack: 'attack', targeted: 'Targeted', eps: 'ε · max change per pixel', steps: 'PGD steps', target: 'make it read as…', opts: 'options', animate: 'animate each step',
+    go: 'Attack', reset: 'Undo attack', fooled: 'FOOLED', held: 'HELD', pixel: v => `${v.toFixed(2)} ≈ ${Math.round(v * 255)}/255`,
+    alpha: (a, s) => `step α = ${a.toFixed(3)} · ${s} steps`, fgsmNote: 'one step of size ε along the gradient sign',
+    probs: 'class probabilities', lgClean: 'clean', lgAdv: 'attacked', traj: 'confidence during the attack', trueLbl: 'label', guessLbl: 'predicted (drawn digit)',
+    m: {linf: 'L∞ ‖δ‖', l2: 'L2 ‖δ‖', changed: 'pixels changed', loss: 'loss', flip: 'flipped at step', time: 'compute'}, never: 'never', ms: 'ms',
+    other: (name, d, p) => `Same image on the <b>${name}</b> model: <b>${d}</b> (${p}%)`, pickFirst: 'Draw or pick a digit first.',
+    map: 'decision map · a slice through input space', mapGo: 'Map both models', mapStop: 'Stop', mapIdle: 'A 2-D slice around your input:\n→ gradient-sign direction\n↑ a random direction\nPress “Map both models”.',
+    mapNote: (n, t) => `${n}×${n} grid · ${t} s on your CPU`, mapBusy: 'mapping…',
+    mapExplain: 'Each pixel is one image x + a·u + b·v, coloured by the class the model predicts (brighter = more confident). <b>→</b> follows the sign of the loss gradient (the direction FGSM uses), <b>↑</b> is random. The dashed square is the ε-box; the ring is your input, the cross is where the attack landed. A standard model changes its mind just a short step along → but hardly at all along ↑: adversarial directions are special, not just “noise”. The robust model pushes the boundary out past ε.',
+    verdict: (d, a) => (d === null ? '' : d <= a ? `boundary at ${d.toFixed(2)} along → (inside ε = ${a.toFixed(2)})` : `no flip along → within ε = ${a.toFixed(2)}`),
+    curve: 'robustness on 2,000 test digits', curveExplain: r => `Accuracy under attack as ε grows, measured offline with PGD-${r.eval.pgd_steps} (1 random restart) and FGSM on the first ${r.eval.n.toLocaleString()} MNIST test images. “Transfer” attacks the robust model with examples crafted on the standard one. The vertical line is your current ε. These are <b>upper bounds</b> on true robustness: a stronger attack (e.g. AutoAttack) could only lower them.`,
+    noCurves: 'The robustness curves appear once the models are trained and evaluated (advlab/train.py).',
+    th: ['ε', 'standard · PGD', 'robust · PGD', 'transfer'], sPgd: 'standard · PGD', sFgsm: 'standard · FGSM', rPgd: 'robust · PGD', rFgsm: 'robust · FGSM', tr: 'transfer → robust', clean: 'clean accuracy',
+    notes: [['What you are seeing', 'The attack takes the gradient of the loss with respect to the pixels and nudges every pixel by at most ε in the direction that hurts the model most. FGSM does it in one step; PGD repeats small steps and projects back into the ε-box. A change of 0.2 per pixel is obvious on a black background, but the digit is still clearly the same to you.'],
+      ['Why the robust model holds', 'The robust model was trained on PGD examples at ε = 0.3 (Madry et al., 2018): every training batch is attacked first, then learned from. It pays for this with a little clean accuracy and more compute, and its gradients become more human-aligned: the “gradient” view looks like strokes, not static.'],
+      ['Honest limits', 'MNIST is the easiest setting for this research; results on natural images are far weaker. The models are small (≈207 k parameters) and trained on a CPU. PGD numbers are upper bounds, and nothing here is a certificate. Code, training settings and evaluation are in <code>niansia/adversarial-lab</code> on GitHub; the in-browser gradients are checked against PyTorch.']],
+    foot: 'Adversarial Lab · small CNNs on MNIST · FGSM / PGD under L∞', rt: () => 'runs on your CPU · the decision maps use two background threads'},
+  'zh-TW': {h1: '用幾乎看不見的雜訊，<em>騙過神經網路</em>', lede: '畫一個數字，或從 MNIST 測試集挑一個，然後用 <b>FGSM</b> 或 <b>PGD</b> 攻擊分類器：沿著模型自己的梯度，替每個像素加上一點點、有上限的改動。再對一個<b>專門為了抵抗這種攻擊而訓練</b>的模型做一樣的事，看看有什麼不同。<b>全部在這個分頁用你的 CPU 計算，不會上傳任何東西。</b>',
+    untrained: '預覽：這兩個模型還沒有訓練（隨機權重），在訓練完成前預測結果沒有意義。',
+    stage: '輸入 + 擾動 = 對抗樣本', hint: '在這裡畫一個數字\n（或從下面挑一個）', capX: 'x · 你的輸入', capD: 'δ · 每個像素的改動', capA: 'x + δ · 模型看到的',
+    dDelta: 'δ', dGrad: '梯度', clear: '清除', random: '隨機數字', model: '被攻擊的模型', standard: '一般模型', robust: '穩健模型（PGD-AT）',
+    attack: '攻擊方式', targeted: '指定目標', eps: 'ε · 每個像素最多改多少', steps: 'PGD 步數', target: '讓它被認成…', opts: '選項', animate: '逐步播放',
+    go: '攻擊', reset: '復原', fooled: '被騙了', held: '守住了', pixel: v => `${v.toFixed(2)} ≈ ${Math.round(v * 255)}/255`,
+    alpha: (a, s) => `每步 α = ${a.toFixed(3)} · ${s} 步`, fgsmNote: '沿梯度符號走一步，步長等於 ε',
+    probs: '各類別機率', lgClean: '原圖', lgAdv: '攻擊後', traj: '攻擊過程中的信心', trueLbl: '標籤', guessLbl: '預測（手繪數字）',
+    m: {linf: 'L∞ ‖δ‖', l2: 'L2 ‖δ‖', changed: '改動的像素', loss: '損失', flip: '在第幾步翻轉', time: '計算時間'}, never: '沒有翻轉', ms: '毫秒',
+    other: (name, d, p) => `同一張圖給<b>${name}</b>：<b>${d}</b>（${p}%）`, pickFirst: '請先畫或挑一個數字。',
+    map: '決策地圖 · 輸入空間的一個切面', mapGo: '畫出兩個模型的地圖', mapStop: '停止', mapIdle: '以你的輸入為中心的 2D 切面：\n→ 梯度符號方向\n↑ 一個隨機方向\n按「畫出兩個模型的地圖」。',
+    mapNote: (n, t) => `${n}×${n} 格 · 你的 CPU 花了 ${t} 秒`, mapBusy: '計算中…',
+    mapExplain: '每個像素代表一張圖 x + a·u + b·v，顏色是模型預測的類別（越亮越有把握）。<b>→</b> 沿著損失梯度的符號（FGSM 用的方向），<b>↑</b> 是隨機方向。虛線方框是 ε 範圍，圓圈是你的輸入，叉叉是攻擊落點。一般模型沿 → 走一小步就改變答案，沿 ↑ 卻幾乎不變：對抗方向很特別，不只是「雜訊」。穩健模型則把邊界推到 ε 之外。',
+    verdict: (d, a) => (d === null ? '' : d <= a ? `沿 → 在 ${d.toFixed(2)} 處翻轉（在 ε = ${a.toFixed(2)} 之內）` : `沿 → 在 ε = ${a.toFixed(2)} 內沒有翻轉`),
+    curve: '在 2,000 張測試數字上的穩健性', curveExplain: r => `隨著 ε 變大，模型在攻擊下的準確率。離線以 PGD-${r.eval.pgd_steps}（1 次隨機起點）與 FGSM 在 MNIST 測試集前 ${r.eval.n.toLocaleString()} 張上量測。「轉移」是用一般模型做出的對抗樣本去攻擊穩健模型。直線是你目前的 ε。這些數字是真實穩健性的<b>上限</b>：更強的攻擊（例如 AutoAttack）只會讓它更低。`,
+    noCurves: '模型訓練並評估完成後（advlab/train.py），這裡會出現穩健性曲線。',
+    th: ['ε', '一般 · PGD', '穩健 · PGD', '轉移'], sPgd: '一般 · PGD', sFgsm: '一般 · FGSM', rPgd: '穩健 · PGD', rFgsm: '穩健 · FGSM', tr: '轉移 → 穩健', clean: '乾淨準確率',
+    notes: [['你看到的是什麼', '攻擊會計算損失對每個像素的梯度，然後讓每個像素朝「最傷模型」的方向改動，但最多不超過 ε。FGSM 一步到位；PGD 則走很多小步，每步都投影回 ε 範圍內。在黑底上改動 0.2 看得出來，但對你來說那個數字還是同一個。'],
+      ['為什麼穩健模型守得住', '穩健模型是用 ε = 0.3 的 PGD 對抗樣本訓練的（Madry 等人，2018）：每一批訓練資料都先被攻擊，再拿來學。代價是少一點乾淨準確率、多很多運算，而它的梯度也更接近人類的直覺：切到「梯度」檢視，會看到筆畫而不是雜訊。'],
+      ['誠實的限制', 'MNIST 是這個研究最容易的場景，在自然影像上的結果會弱很多。模型很小（約 20.7 萬參數），而且是用 CPU 訓練的。PGD 的數字是上限，這裡沒有任何保證。程式碼、訓練設定與評估都在 GitHub 的 <code>niansia/adversarial-lab</code>，瀏覽器裡算的梯度也和 PyTorch 對照驗證過。']],
+    foot: '對抗樣本實驗室 · MNIST 小型 CNN · L∞ 下的 FGSM / PGD', rt: () => '在你的 CPU 上執行 · 決策地圖使用兩個背景執行緒'},
+  'zh-CN': {h1: '用几乎看不见的噪声，<em>骗过神经网络</em>', lede: '画一个数字，或从 MNIST 测试集挑一个，然后用 <b>FGSM</b> 或 <b>PGD</b> 攻击分类器：沿着模型自己的梯度，给每个像素加上一点点、有上限的改动。再对一个<b>专门为了抵抗这种攻击而训练</b>的模型做同样的事，看看有什么不同。<b>全部在这个标签页用你的 CPU 计算，不会上传任何东西。</b>',
+    untrained: '预览：这两个模型还没有训练（随机权重），在训练完成前预测结果没有意义。',
+    stage: '输入 + 扰动 = 对抗样本', hint: '在这里画一个数字\n（或从下面挑一个）', capX: 'x · 你的输入', capD: 'δ · 每个像素的改动', capA: 'x + δ · 模型看到的',
+    dDelta: 'δ', dGrad: '梯度', clear: '清除', random: '随机数字', model: '被攻击的模型', standard: '普通模型', robust: '稳健模型（PGD-AT）',
+    attack: '攻击方式', targeted: '指定目标', eps: 'ε · 每个像素最多改多少', steps: 'PGD 步数', target: '让它被认成…', opts: '选项', animate: '逐步播放',
+    go: '攻击', reset: '复原', fooled: '被骗了', held: '守住了', pixel: v => `${v.toFixed(2)} ≈ ${Math.round(v * 255)}/255`,
+    alpha: (a, s) => `每步 α = ${a.toFixed(3)} · ${s} 步`, fgsmNote: '沿梯度符号走一步，步长等于 ε',
+    probs: '各类别概率', lgClean: '原图', lgAdv: '攻击后', traj: '攻击过程中的置信度', trueLbl: '标签', guessLbl: '预测（手绘数字）',
+    m: {linf: 'L∞ ‖δ‖', l2: 'L2 ‖δ‖', changed: '改动的像素', loss: '损失', flip: '在第几步翻转', time: '计算时间'}, never: '没有翻转', ms: '毫秒',
+    other: (name, d, p) => `同一张图给<b>${name}</b>：<b>${d}</b>（${p}%）`, pickFirst: '请先画或挑一个数字。',
+    map: '决策地图 · 输入空间的一个切面', mapGo: '画出两个模型的地图', mapStop: '停止', mapIdle: '以你的输入为中心的 2D 切面：\n→ 梯度符号方向\n↑ 一个随机方向\n按“画出两个模型的地图”。',
+    mapNote: (n, t) => `${n}×${n} 格 · 你的 CPU 花了 ${t} 秒`, mapBusy: '计算中…',
+    mapExplain: '每个像素代表一张图 x + a·u + b·v，颜色是模型预测的类别（越亮越有把握）。<b>→</b> 沿着损失梯度的符号（FGSM 用的方向），<b>↑</b> 是随机方向。虚线方框是 ε 范围，圆圈是你的输入，叉叉是攻击落点。普通模型沿 → 走一小步就改变答案，沿 ↑ 却几乎不变：对抗方向很特别，不只是“噪声”。稳健模型则把边界推到 ε 之外。',
+    verdict: (d, a) => (d === null ? '' : d <= a ? `沿 → 在 ${d.toFixed(2)} 处翻转（在 ε = ${a.toFixed(2)} 之内）` : `沿 → 在 ε = ${a.toFixed(2)} 内没有翻转`),
+    curve: '在 2,000 张测试数字上的稳健性', curveExplain: r => `随着 ε 变大，模型在攻击下的准确率。离线以 PGD-${r.eval.pgd_steps}（1 次随机起点）与 FGSM 在 MNIST 测试集前 ${r.eval.n.toLocaleString()} 张上测量。“迁移”是用普通模型生成的对抗样本去攻击稳健模型。竖线是你当前的 ε。这些数字是真实稳健性的<b>上限</b>：更强的攻击（例如 AutoAttack）只会让它更低。`,
+    noCurves: '模型训练并评估完成后（advlab/train.py），这里会出现稳健性曲线。',
+    th: ['ε', '普通 · PGD', '稳健 · PGD', '迁移'], sPgd: '普通 · PGD', sFgsm: '普通 · FGSM', rPgd: '稳健 · PGD', rFgsm: '稳健 · FGSM', tr: '迁移 → 稳健', clean: '干净准确率',
+    notes: [['你看到的是什么', '攻击会计算损失对每个像素的梯度，然后让每个像素朝“最伤模型”的方向改动，但最多不超过 ε。FGSM 一步到位；PGD 则走很多小步，每步都投影回 ε 范围内。在黑底上改动 0.2 看得出来，但对你来说那个数字还是同一个。'],
+      ['为什么稳健模型守得住', '稳健模型是用 ε = 0.3 的 PGD 对抗样本训练的（Madry 等人，2018）：每一批训练数据都先被攻击，再拿来学。代价是少一点干净准确率、多很多运算，而它的梯度也更接近人类的直觉：切到“梯度”视图，会看到笔画而不是噪声。'],
+      ['诚实的限制', 'MNIST 是这个研究最容易的场景，在自然图像上的结果会弱很多。模型很小（约 20.7 万参数），而且是用 CPU 训练的。PGD 的数字是上限，这里没有任何保证。代码、训练设置与评估都在 GitHub 的 <code>niansia/adversarial-lab</code>，浏览器里算的梯度也和 PyTorch 对照验证过。']],
+    foot: '对抗样本实验室 · MNIST 小型 CNN · L∞ 下的 FGSM / PGD', rt: () => '在你的 CPU 上运行 · 决策地图使用两个后台线程'}
+};
+const T = () => COPY[L];
+const CLS = ['#7cc4ff', '#ffb454', '#6fdc98', '#ff5d73', '#b794ff', '#4fd6cf', '#ffe066', '#e879f9', '#a8b3c7', '#c08a5b']; // ten well-separated hues (3 red vs 7 magenta)
+const A = window.AdvNet, BASE = './';
+const S = {W: {}, model: 'standard', attack: 'pgd', target: 3, eps: .2, steps: 40, x0: null, xAdv: null, label: null, drawn: false, traj: [], flipAt: null, busy: false, dview: 'delta', sample: -1, report: null, grad: null, ms: 0, loss0: 0, loss1: 0};
+
+/* ---------- text ---------- */
+function paintText() {
+  const t = T();
+  document.documentElement.lang = L;
+  $('h1').innerHTML = t.h1; $('lede').innerHTML = t.lede; $('lang').textContent = {en: 'EN', 'zh-TW': '繁', 'zh-CN': '简'}[L];
+  $('back').href = `https://niansia.github.io${L === 'en' ? '/' : '/' + L.toLowerCase() + '/'}#research`;
+  $('stage-h').textContent = t.stage; $('draw-hint').innerText = t.hint;
+  $('cap-x').textContent = t.capX; $('cap-d').textContent = t.capD; $('cap-a').textContent = t.capA;
+  document.querySelector('[data-dview="delta"]').textContent = t.dDelta; document.querySelector('[data-dview="grad"]').textContent = t.dGrad;
+  $('clear').textContent = t.clear; $('random').textContent = t.random;
+  $('l-model').textContent = t.model; document.querySelector('[data-model="standard"]').textContent = t.standard; document.querySelector('[data-model="robust"]').textContent = t.robust;
+  $('l-attack').textContent = t.attack; document.querySelector('[data-attack="targeted"]').textContent = t.targeted;
+  $('l-eps').textContent = t.eps; $('l-steps').textContent = t.steps; $('l-target').textContent = t.target; $('l-opts').textContent = t.opts; $('l-animate').textContent = t.animate;
+  $('go-t').textContent = t.go; $('reset').textContent = t.reset;
+  $('probs-h').textContent = t.probs; $('lg-clean').textContent = t.lgClean; $('lg-adv').textContent = t.lgAdv; $('traj-h').textContent = t.traj;
+  $('map-h').textContent = t.map; $('map-go').textContent = mapping ? t.mapStop : t.mapGo; $('map-explain').innerHTML = t.mapExplain;
+  document.querySelectorAll('.map').forEach(m => { m.querySelector('.tag').textContent = t[m.dataset.map]; m.querySelector('.idle').innerText = t.mapIdle; });
+  $('keys').innerHTML = CLS.map((c, i) => `<span><i style="background:${c}"></i>${i}</span>`).join('');
+  $('curve-h').textContent = t.curve;
+  $('notes').innerHTML = t.notes.map(([h, b]) => `<div><b>${h}</b>${b}</div>`).join('');
+  $('foot-l').textContent = t.foot; $('rt').textContent = t.rt(1);
+  $('warn').textContent = t.untrained;
+  paintControls(); paintAll(); drawCurves();
+}
+
+/* ---------- models ---------- */
+async function loadModels() {
+  const [s, r] = await Promise.all(['standard', 'robust'].map(n => fetch(BASE + n + '.bin').then(x => x.arrayBuffer())));
+  S.W.standard = A.load(s, 'float16'); S.W.robust = A.load(r, 'float16');
+  try { const res = await fetch(BASE + 'robustness.json'); if (res.ok) S.report = await res.json(); } catch {}
+  $('warn').classList.toggle('on', !S.report);
+  drawCurves();
+}
+
+/* ---------- drawing → 28×28 in MNIST style (20×20 box, centred by mass) ---------- */
+const draw = $('draw'), dctx = draw.getContext('2d', {willReadFrequently: true});
+function clearDraw() { dctx.fillStyle = '#000'; dctx.fillRect(0, 0, 280, 280); }
+let drawing = false, last = null;
+function pos(e) { const r = draw.getBoundingClientRect(); return [(e.clientX - r.left) * 280 / r.width, (e.clientY - r.top) * 280 / r.height]; }
+draw.addEventListener('pointerdown', e => {
+  if (!S.drawn) { clearDraw(); S.xAdv = null; S.traj = []; }
+  drawing = true; S.drawn = true; S.sample = -1; last = pos(e); draw.setPointerCapture(e.pointerId); stroke(last, last); $('draw-hint').style.opacity = 0; paintSamples();
+});
+draw.addEventListener('pointermove', e => { if (!drawing) return; const p = pos(e); stroke(last, p); last = p; });
+const endDraw = () => { if (!drawing) return; drawing = false; S.x0 = fromCanvas(); S.label = null; S.xAdv = null; S.traj = []; S.flipAt = null; paintAll(); };
+draw.addEventListener('pointerup', endDraw); draw.addEventListener('pointercancel', endDraw);
+function stroke(a, b) { dctx.strokeStyle = '#fff'; dctx.lineWidth = 22; dctx.lineCap = 'round'; dctx.lineJoin = 'round'; dctx.beginPath(); dctx.moveTo(a[0], a[1]); dctx.lineTo(b[0], b[1]); dctx.stroke(); }
+function fromCanvas() {
+  const src = dctx.getImageData(0, 0, 280, 280).data;
+  let x0 = 280, y0 = 280, x1 = -1, y1 = -1;
+  for (let y = 0; y < 280; y++) for (let x = 0; x < 280; x++) if (src[(y * 280 + x) * 4] > 30) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  const out = new Float32Array(784);
+  if (x1 < 0) return out;
+  const w = x1 - x0 + 1, h = y1 - y0 + 1, s = 20 / Math.max(w, h);
+  const tmp = document.createElement('canvas'); tmp.width = tmp.height = 28;
+  const t = tmp.getContext('2d', {willReadFrequently: true}); t.fillStyle = '#000'; t.fillRect(0, 0, 28, 28); t.imageSmoothingQuality = 'high';
+  t.drawImage(draw, x0, y0, w, h, (28 - w * s) / 2, (28 - h * s) / 2, w * s, h * s);
+  const px = t.getImageData(0, 0, 28, 28).data;
+  let m = 0, cx = 0, cy = 0;
+  for (let i = 0; i < 784; i++) { const v = px[i * 4] / 255; m += v; cx += v * (i % 28); cy += v * Math.floor(i / 28); }
+  const dx = Math.round(13.5 - cx / m), dy = Math.round(13.5 - cy / m);
+  for (let y = 0; y < 28; y++) for (let x = 0; x < 28; x++) { const sx = x - dx, sy = y - dy; if (sx >= 0 && sx < 28 && sy >= 0 && sy < 28) out[y * 28 + x] = px[(sy * 28 + sx) * 4] / 255; }
+  return out;
+}
+function showOnDraw(x) {
+  const img = dctx.createImageData(28, 28);
+  for (let i = 0; i < 784; i++) { const v = Math.round(x[i] * 255); img.data.set([v, v, v, 255], i * 4); }
+  const tmp = document.createElement('canvas'); tmp.width = tmp.height = 28; tmp.getContext('2d').putImageData(img, 0, 0);
+  dctx.imageSmoothingEnabled = false; dctx.drawImage(tmp, 0, 0, 280, 280); dctx.imageSmoothingEnabled = true;
+}
+
+/* ---------- samples ---------- */
+let SAMPLES = [];
+async function loadSamples() {
+  const d = await (await fetch(BASE + 'samples.json')).json();
+  SAMPLES = d.samples.map(s => ({label: s.label, x: Float32Array.from(atob(s.px), c => c.charCodeAt(0) / 255)}));
+  $('samples').innerHTML = SAMPLES.map((s, i) => `<button type="button" data-sample="${i}" aria-pressed="false" aria-label="${s.label}"><canvas width="28" height="28"></canvas></button>`).join('');
+  $('samples').querySelectorAll('canvas').forEach((c, i) => paintGray(c, SAMPLES[i].x));
+  pickSample(SAMPLES.findIndex(s => s.label === 7));
+}
+function pickSample(i) {
+  const s = SAMPLES[i]; if (!s) return;
+  S.sample = i; S.x0 = Float32Array.from(s.x); S.label = s.label; S.drawn = false; S.xAdv = null; S.traj = []; S.flipAt = null;
+  showOnDraw(S.x0); $('draw-hint').style.opacity = 0; paintSamples(); paintAll(); resetMaps();
+}
+function paintSamples() { $('samples').querySelectorAll('[data-sample]').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.sample) === S.sample))); }
+
+/* ---------- painting ---------- */
+function paintGray(c, x) {
+  const ctx = c.getContext('2d'), img = ctx.createImageData(28, 28);
+  for (let i = 0; i < 784; i++) { const v = Math.round(x[i] * 255); img.data.set([v, v, v, 255], i * 4); }
+  ctx.putImageData(img, 0, 0);
+}
+// diverging: blue = darker, amber/red = brighter, black = unchanged
+function paintDiverging(c, d, scale) {
+  const ctx = c.getContext('2d'), img = ctx.createImageData(28, 28);
+  for (let i = 0; i < 784; i++) {
+    const t = Math.max(-1, Math.min(1, d[i] / (scale || 1))), a = Math.abs(t);
+    const rgb = t > 0 ? [255, 122 + 58 * (1 - a), 84 + 54 * (1 - a)] : [124, 196, 255];
+    img.data.set([rgb[0] * a, rgb[1] * a, rgb[2] * a, 255], i * 4);
+  }
+  ctx.putImageData(img, 0, 0);
+}
+const argmax = p => p.reduce((b, v, i) => (v > p[b] ? i : b), 0);
+const fmtLoss = v => (v < .01 ? v.toExponential(1) : v.toFixed(2));
+const pct = v => (v * 100).toFixed(v > .995 || v < .005 ? 1 : 0);
+function trueLabel() { return S.label !== null ? S.label : S.x0 ? argmax(A.predict(S.W[S.model], S.x0)) : null; }
+function paintAll() {
+  const t = T(), W = S.W[S.model];
+  if (!W || !S.x0) { paintBars(null, null); return; }
+  const p0 = A.predict(W, S.x0), y = trueLabel();
+  const pa = S.xAdv ? A.predict(W, S.xAdv) : null;
+  const k0 = argmax(p0);
+  $('pred-clean').querySelector('strong').textContent = k0;
+  $('pred-clean').querySelector('span').textContent = `${pct(p0[k0])}% · ${S.label !== null ? `${t.trueLbl} ${S.label}` : t.guessLbl}`;
+  $('pred-clean').className = 'pred';
+  const delta = new Float32Array(784); if (S.xAdv) for (let i = 0; i < 784; i++) delta[i] = S.xAdv[i] - S.x0[i];
+  if (S.dview === 'grad') {
+    const g = A.lossGrad(W, S.xAdv || S.x0, y).grad; let m = 0; for (const v of g) m = Math.max(m, Math.abs(v));
+    paintDiverging($('delta'), g, m || 1);
+  } else paintDiverging($('delta'), delta, Math.max(S.eps, .01));
+  paintGray($('adv'), S.xAdv || S.x0);
+  const pa2 = pa || p0, ka = argmax(pa2);
+  const fooled = !!pa && (S.attack === 'targeted' ? ka === S.target : ka !== y);
+  $('pred-adv').querySelector('strong').textContent = ka;
+  $('pred-adv').querySelector('span').textContent = `${pct(pa2[ka])}%`;
+  $('pred-adv').className = `pred ${pa ? (fooled ? 'flip' : 'hold') : ''}`;
+  const stamp = $('stamp'); stamp.textContent = fooled ? t.fooled : t.held; stamp.className = `stamp ${pa && !S.busy ? 'on' : ''} ${fooled ? '' : 'hold'}`;
+  paintBars(p0, pa, y);
+  paintTraj();
+  paintMetrics(delta, y);
+  const other = S.model === 'standard' ? 'robust' : 'standard';
+  if (pa && S.W[other]) { const po = A.predict(S.W[other], S.xAdv), ko = argmax(po); $('other').innerHTML = t.other(t[other], ko, pct(po[ko])); } else $('other').innerHTML = '';
+}
+function paintBars(p0, pa, y) {
+  const box = $('bars');
+  if (!box.children.length) box.innerHTML = Array.from({length: 10}, (_, i) => `<div class="bar" data-bar="${i}"><b>${i}</b><span class="track"><i></i><s></s></span><em>–</em></div>`).join('');
+  [...box.children].forEach((row, i) => {
+    row.classList.toggle('true', i === y);
+    row.classList.toggle('target', S.attack === 'targeted' && i === S.target);
+    row.querySelector('i').style.width = p0 ? `${p0[i] * 100}%` : '0';
+    row.querySelector('s').style.width = pa ? `${pa[i] * 100}%` : '0';
+    row.querySelector('em').textContent = p0 ? `${pct((pa || p0)[i])}%` : '–';
+  });
+}
+function paintTraj() {
+  const svg = $('traj'), tr = S.traj;
+  if (tr.length < 2) { svg.innerHTML = `<line x1="0" y1="119" x2="300" y2="119" stroke="#ffffff22"/>`; return; }
+  const X = i => (i / (tr.length - 1)) * 300, Y = v => 116 - v * 110;
+  const path = k => tr.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p[k]).toFixed(1)}`).join('');
+  const flip = S.flipAt !== null ? `<line x1="${X(S.flipAt)}" y1="0" x2="${X(S.flipAt)}" y2="120" stroke="#ff7a8a" stroke-dasharray="3 3"/>` : '';
+  svg.innerHTML = `<line x1="0" y1="61" x2="300" y2="61" stroke="#ffffff14" stroke-dasharray="2 4"/>${flip}
+    <path d="${path('keep')}" fill="none" stroke="#7cc4ff" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    <path d="${path('rival')}" fill="none" stroke="#ff7a8a" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+}
+function paintMetrics(delta, y) {
+  const t = T(); let linf = 0, l2 = 0, changed = 0;
+  for (const v of delta) { const a = Math.abs(v); linf = Math.max(linf, a); l2 += v * v; if (a > 1 / 255) changed++; }
+  const rows = [[t.m.linf, linf.toFixed(3)], [t.m.l2, Math.sqrt(l2).toFixed(2)], [t.m.changed, `${changed} / 784`],
+    [t.m.loss, S.xAdv ? `${fmtLoss(S.loss0)} → ${fmtLoss(S.loss1)}` : '–'], [t.m.flip, S.xAdv ? (S.flipAt === null ? t.never : S.flipAt) : '–'], [t.m.time, S.xAdv ? `${S.ms} ${t.ms}` : '–']];
+  $('metrics').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+}
+
+/* ---------- attack ---------- */
+async function runAttack() {
+  if (S.busy) return;
+  if (!S.x0 || !S.x0.some(v => v > 0)) { $('run-note').textContent = T().pickFirst; return; }
+  const W = S.W[S.model], y = trueLabel(), eps = S.eps, targeted = S.attack === 'targeted';
+  if (targeted && S.target === y) S.target = (y + 1) % 10;
+  const steps = S.attack === 'fgsm' ? 1 : S.steps, alpha = S.attack === 'fgsm' ? eps : Math.max(2.5 * eps / steps, eps / 100);
+  S.busy = true; $('go').disabled = true; S.flipAt = null; S.xAdv = Float32Array.from(S.x0);
+  const probe = p => (targeted ? {keep: Math.max(...p.filter((_, i) => i !== S.target)), rival: p[S.target]} : {keep: p[y], rival: Math.max(...p.filter((_, i) => i !== y))});
+  const p0 = A.predict(W, S.x0); S.traj = [probe(p0)]; S.loss0 = -Math.log(Math.max(p0[y], 1e-12));
+  const animate = $('animate').checked && !matchMedia('(prefers-reduced-motion: reduce)').matches && steps > 1;
+  const perFrame = Math.max(1, Math.ceil(steps / 45)), t0 = performance.now();
+  for (let k = 1; k <= steps; k++) {
+    const r = A.pgdStep(W, S.xAdv, S.x0, {eps, alpha, label: y, target: targeted ? S.target : null});
+    S.xAdv = r.x;
+    const p = A.predict(W, S.xAdv);
+    S.traj.push(probe(p));
+    const k1 = argmax(p);
+    if (S.flipAt === null && (targeted ? k1 === S.target : k1 !== y)) S.flipAt = k;
+    if (animate && k % perFrame === 0) { paintAll(); await new Promise(requestAnimationFrame); }
+  }
+  S.ms = Math.round(performance.now() - t0);
+  const p1 = A.predict(W, S.xAdv); S.loss1 = -Math.log(Math.max(p1[y], 1e-12));
+  S.busy = false; $('go').disabled = false;
+  paintAll();
+  if (S.flipAt !== null) { const box = $('adv-box'); box.classList.remove('glitch'); void box.offsetWidth; box.classList.add('glitch'); }
+  mapMarks();
+}
+function undo() { S.xAdv = null; S.traj = []; S.flipAt = null; paintAll(); mapMarks(); }
+
+/* ---------- controls ---------- */
+function paintControls() {
+  const t = T();
+  document.querySelectorAll('[data-model]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.model === S.model)));
+  document.querySelectorAll('[data-attack]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.attack === S.attack)));
+  document.querySelectorAll('[data-dview]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dview === S.dview)));
+  $('v-eps').textContent = t.pixel(S.eps); $('v-steps').textContent = S.attack === 'fgsm' ? '1' : S.steps;
+  $('steps-ctl').classList.toggle('off', S.attack === 'fgsm'); $('target-ctl').classList.toggle('off', S.attack !== 'targeted');
+  const y = S.x0 && S.W[S.model] ? trueLabel() : null;
+  $('targets').innerHTML = Array.from({length: 10}, (_, i) => `<button type="button" data-target="${i}" aria-pressed="${i === S.target}" ${i === y ? 'disabled' : ''}>${i}</button>`).join('');
+  $('run-note').textContent = S.attack === 'fgsm' ? t.fgsmNote : t.alpha(Math.max(2.5 * S.eps / S.steps, S.eps / 100), S.steps);
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.sample) { pickSample(Number(b.dataset.sample)); paintControls(); return; }
+  if (b.dataset.model) { S.model = b.dataset.model; undo(); paintControls(); return; }
+  if (b.dataset.attack) { S.attack = b.dataset.attack; paintControls(); paintAll(); return; }
+  if (b.dataset.target) { S.target = Number(b.dataset.target); paintControls(); paintAll(); return; }
+  if (b.dataset.dview) { S.dview = b.dataset.dview; paintControls(); paintAll(); return; }
+  if (b.id === 'go') runAttack();
+  if (b.id === 'reset') undo();
+  if (b.id === 'clear') { clearDraw(); S.x0 = null; S.xAdv = null; S.label = null; S.drawn = true; S.sample = -1; S.traj = []; $('draw-hint').style.opacity = 1; paintSamples(); paintAll(); resetMaps(); }
+  if (b.id === 'random') pickSample(Math.floor(Math.random() * SAMPLES.length));
+  if (b.id === 'map-go') mapping ? stopMaps() : startMaps();
+  if (b.id === 'lang') { L = L === 'en' ? 'zh-TW' : L === 'zh-TW' ? 'zh-CN' : 'en'; const u = new URL(location); u.searchParams.set('lang', L); history.replaceState(null, '', u); paintText(); }
+});
+$('eps').addEventListener('input', e => { S.eps = Number(e.target.value); paintControls(); drawCurves(); mapMarks(); });
+$('steps').addEventListener('input', e => { S.steps = Number(e.target.value); paintControls(); });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.target.closest('button,a,input[type=checkbox]')) { e.preventDefault(); runAttack(); } });
+
+/* ---------- decision maps (one worker per model, coarse to fine) ---------- */
+let workers = {}, mapping = false, jobId = 0, mapStart = 0, planes = null;
+const LEVELS = [8, 16, 24], SPAN = .5, COST = LEVELS.reduce((a, n) => a + n * n, 0) * 2;
+function rng(seed) { return () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296); }
+function resetMaps() { stopMaps(); planes = null; document.querySelectorAll('.map').forEach(m => { m.querySelector('.idle').hidden = false; m.querySelector('svg').innerHTML = ''; m.querySelector('.verdict').textContent = ''; m.dataset.dist = ''; }); $('map-bar').style.width = '0'; $('map-note').textContent = ''; }
+function stopMaps() { mapping = false; jobId++; Object.values(workers).forEach(w => w.terminate()); workers = {}; $('map-go').textContent = T().mapGo; }
+function startMaps() {
+  if (!S.x0 || !S.x0.some(v => v > 0)) { $('map-note').textContent = T().pickFirst; return; }
+  stopMaps();
+  const y = trueLabel(), rand = rng(7), v = new Float32Array(784); for (let i = 0; i < 784; i++) v[i] = rand() < .5 ? -1 : 1;
+  planes = {};
+  mapping = true; jobId++; mapStart = performance.now(); $('map-go').textContent = T().mapStop; $('map-note').textContent = T().mapBusy; $('map-bar').style.width = '2%';
+  for (const m of ['standard', 'robust']) {
+    const g = A.lossGrad(S.W[m], S.x0, y).grad, u = new Float32Array(784); for (let i = 0; i < 784; i++) u[i] = Math.sign(g[i]);
+    planes[m] = {u, v, y, done: 0, finished: false};
+    const w = new Worker(BASE + 'map-worker.js'); w.onmessage = onMap; workers[m] = w;
+    w.postMessage({id: jobId, model: m, url: BASE + m + '.bin', x0: S.x0, u, v, span: SPAN, levels: LEVELS});
+  }
+}
+function finishMap(m) {
+  planes[m].finished = true; workers[m]?.terminate(); delete workers[m];
+  if (Object.values(planes).every(p => p.finished)) { mapping = false; $('map-go').textContent = T().mapGo; $('map-note').textContent = T().mapNote(LEVELS.at(-1), ((performance.now() - mapStart) / 1000).toFixed(1)); }
+}
+function onMap({data}) {
+  if (data.id !== jobId || !planes) return;
+  if (data.done) { finishMap(data.model); return; }
+  const m = data.model, box = document.querySelector(`.map[data-map="${m}"]`), c = box.querySelector('canvas'), n = data.n;
+  c.width = c.height = n; const ctx = c.getContext('2d'), img = ctx.createImageData(n, n);
+  for (let i = 0; i < n * n; i++) {
+    const hex = CLS[data.cls[i]], a = .28 + .72 * Math.pow(data.conf[i], 2);
+    img.data.set([parseInt(hex.slice(1, 3), 16) * a, parseInt(hex.slice(3, 5), 16) * a, parseInt(hex.slice(5, 7), 16) * a, 255], i * 4);
+  }
+  ctx.putImageData(img, 0, 0);
+  box.querySelector('.idle').hidden = true;
+  planes[m].done += n * n; planes[m].grid = {n, cls: data.cls};
+  const total = Object.values(planes).reduce((s, p) => s + p.done, 0);
+  $('map-bar').style.width = `${Math.min(100, total / COST * 100)}%`;
+  // distance to the boundary along → on the middle row (finest grid so far)
+  const mid = Math.floor(n / 2), center = Math.floor(n / 2), y = planes[m].y; let dist = null;
+  for (let c2 = center; c2 < n; c2++) if (data.cls[mid * n + c2] !== y) { dist = -SPAN + (2 * SPAN * (c2 + .5)) / n; break; }
+  box.dataset.dist = dist === null ? '' : dist;
+  mapMarks();
+}
+function mapMarks() {
+  document.querySelectorAll('.map').forEach(box => {
+    const m = box.dataset.map, svg = box.querySelector('svg');
+    if (!planes || box.querySelector('.idle').hidden === false) { svg.innerHTML = ''; return; }
+    const P = v => 50 + (v / SPAN) * 50, e = S.eps, t = T();
+    let mark = '';
+    if (S.xAdv && planes[m]) {
+      const {u, v} = planes[m]; let a = 0, b = 0, na = 0;
+      for (let i = 0; i < 784; i++) { const d = S.xAdv[i] - S.x0[i]; a += d * u[i]; na += Math.abs(u[i]); b += d * v[i]; }
+      const ax = P(a / Math.max(na, 1)), by = P(-(b / 784));
+      mark = `<path d="M${ax - 2.4},${by - 2.4}L${ax + 2.4},${by + 2.4}M${ax + 2.4},${by - 2.4}L${ax - 2.4},${by + 2.4}" stroke="#fff" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`;
+    }
+    svg.innerHTML = `<line x1="50" y1="0" x2="50" y2="100" stroke="#ffffff30" stroke-width=".4"/><line x1="0" y1="50" x2="100" y2="50" stroke="#ffffff30" stroke-width=".4"/>
+      <rect x="${P(-e)}" y="${P(-e)}" width="${P(e) - P(-e)}" height="${P(e) - P(-e)}" fill="none" stroke="#fff" stroke-width="1.2" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>
+      <circle cx="50" cy="50" r="2.6" fill="none" stroke="#fff" stroke-width="1.6" vector-effect="non-scaling-stroke"/>${mark}
+      <text x="97" y="47" fill="#fff" font-size="5" text-anchor="end" font-family="JetBrains Mono">→ ∇</text><text x="52" y="6" fill="#fff" font-size="5" font-family="JetBrains Mono">↑ rand</text>`;
+    const d = box.dataset.dist; box.querySelector('.verdict').textContent = d === undefined ? '' : t.verdict(d === '' ? SPAN + 1 : Number(d), e);
+  });
+}
+
+/* ---------- robustness curves (measured offline) ---------- */
+function drawCurves() {
+  const svg = $('curves'), r = S.report, t = T();
+  if (!r) { svg.innerHTML = `<text x="260" y="150" text-anchor="middle">${t.noCurves}</text>`; $('ctable').innerHTML = ''; $('curve-explain').textContent = ''; return; }
+  const X0 = 44, X1 = 505, Y0 = 60, Y1 = 300, maxE = r.eps.at(-1);
+  const X = e => X0 + (e / maxE) * (X1 - X0), Y = a => Y1 - a * (Y1 - Y0);
+  const line = (arr, color, dash) => `<path d="${arr.map((a, i) => `${i ? 'L' : 'M'}${X(r.eps[i]).toFixed(1)},${Y(a).toFixed(1)}`).join('')}" fill="none" stroke="${color}" stroke-width="2.2" ${dash ? `stroke-dasharray="${dash}"` : ''}/>` +
+    arr.map((a, i) => `<circle cx="${X(r.eps[i])}" cy="${Y(a)}" r="2.6" fill="${color}"><title>ε ${r.eps[i]} · ${(a * 100).toFixed(1)}%</title></circle>`).join('');
+  const grid = [0, .25, .5, .75, 1].map(a => `<line x1="${X0}" y1="${Y(a)}" x2="${X1}" y2="${Y(a)}" stroke="#ffffff12"/><text x="${X0 - 6}" y="${Y(a) + 3.5}" text-anchor="end">${a * 100}%</text>`).join('')
+    + r.eps.filter((_, i) => i % 2 === 0).map(e => `<text x="${X(e)}" y="${Y1 + 16}" text-anchor="middle">${e}</text>`).join('');
+  const series = [[r.standard.pgd, '#7cc4ff', '', t.sPgd], [r.standard.fgsm, '#7cc4ff', '5 4', t.sFgsm], [r.robust.pgd, '#6fdc98', '', t.rPgd], [r.robust.fgsm, '#6fdc98', '5 4', t.rFgsm], [r.transfer.pgd, '#ffb454', '2 4', t.tr]];
+  const legend = series.map(([, c, d, name], i) => `<g transform="translate(${X0 + (i % 3) * 154},${12 + Math.floor(i / 3) * 18})"><line x1="0" y1="0" x2="18" y2="0" stroke="${c}" stroke-width="2.2" ${d ? `stroke-dasharray="${d}"` : ''}/><text x="24" y="3.5">${name}</text></g>`).join('');
+  svg.innerHTML = `${grid}<line x1="${X(S.eps)}" y1="${Y0}" x2="${X(S.eps)}" y2="${Y1}" stroke="#ff7a8a" stroke-dasharray="3 3"/><text x="${X(S.eps) + 4}" y="${Y1 - 6}" fill="#ff7a8a">ε ${S.eps.toFixed(2)}</text>${series.map(([a, c, d]) => line(a, c, d)).join('')}${legend}`;
+  svg.setAttribute('aria-label', t.curve);
+  const cols = [0.1, 0.2, 0.3].map(e => r.eps.indexOf(e)).filter(i => i >= 0);
+  const row = (name, arr) => `<tr><td>${name}</td>${cols.map(i => `<td>${(arr[i] * 100).toFixed(1)}%</td>`).join('')}</tr>`;
+  $('ctable').innerHTML = `<tr><th>${t.th[0]}</th>${cols.map(i => `<th>${r.eps[i]}</th>`).join('')}</tr>`
+    + `<tr><td>${t.clean}</td><td colspan="${cols.length}">${(r.clean.standard * 100).toFixed(2)}% · ${(r.clean.robust * 100).toFixed(2)}%</td></tr>`
+    + row(t.th[1], r.standard.pgd) + row(t.th[2], r.robust.pgd) + row(t.th[3], r.transfer.pgd);
+  $('curve-explain').innerHTML = t.curveExplain(r);
+}
+
+/* ---------- start ---------- */
+clearDraw(); paintText();
+Promise.all([loadModels(), loadSamples()]).then(() => { paintControls(); paintAll(); }).catch(err => { $('warn').textContent = String(err); $('warn').classList.add('on'); });
+})();
+</script>
+</body>
+</html>
