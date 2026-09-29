@@ -5,15 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Adversarial Lab · fool a neural network in your browser</title>
 <meta name="description" content="Attack a handwritten-digit classifier with FGSM and PGD, watch the prediction flip, and compare it with an adversarially trained model. Everything runs on your CPU in the browser.">
-<link rel="canonical" href="https://niansia.github.io/lab/adversarial/">
+<link rel="canonical" href="https://niansia.com/lab/adversarial/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Adversarial Lab · fool a neural network in your browser">
 <meta property="og:description" content="FGSM and PGD attacks, decision maps and robustness curves for a standard and an adversarially trained model, running on your own device.">
-<meta property="og:url" content="https://niansia.github.io/lab/adversarial/">
-<meta property="og:image" content="https://niansia.github.io/assets/og/adversarial-demo.jpg">
+<meta property="og:url" content="https://niansia.com/lab/adversarial/">
+<meta property="og:image" content="https://niansia.com/assets/og/adversarial-demo.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#07080b">
-<link rel="icon" href="https://niansia.github.io/assets/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="https://niansia.com/assets/icons/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
 <style>
@@ -228,7 +228,7 @@ input[type=range]{width:100%;accent-color:var(--bad);}
   </div>
 
   <div class="notes" id="notes"></div>
-  <div class="foot"><span id="foot-l"></span><a href="https://github.com/niansia/adversarial-lab">github.com/niansia/adversarial-lab</a><span id="rt"></span><a href="https://niansia.github.io/lab/adversarial/">live demo · niansia.github.io</a></div>
+  <div class="foot"><span id="foot-l"></span><a href="https://github.com/niansia/adversarial-lab">github.com/niansia/adversarial-lab</a><span id="rt"></span><a href="https://niansia.com/lab/adversarial/">live demo · niansia.com</a></div>
 </div>
 <script src="./advnet.js"></script>
 <script>
@@ -313,7 +313,7 @@ function paintText() {
   const t = T();
   document.documentElement.lang = L;
   $('h1').innerHTML = t.h1; $('lede').innerHTML = t.lede; $('lang').textContent = {en: 'EN', 'zh-TW': '繁', 'zh-CN': '简'}[L];
-  $('back').href = `https://niansia.github.io${L === 'en' ? '/' : '/' + L.toLowerCase() + '/'}#research`;
+  $('back').href = `https://niansia.com${L === 'en' ? '/' : '/' + L.toLowerCase() + '/'}#research`;
   $('stage-h').textContent = t.stage; $('draw-hint').innerText = t.hint;
   $('cap-x').textContent = t.capX; $('cap-d').textContent = t.capD; $('cap-a').textContent = t.capA;
   document.querySelector('[data-dview="delta"]').textContent = t.dDelta; document.querySelector('[data-dview="grad"]').textContent = t.dGrad;

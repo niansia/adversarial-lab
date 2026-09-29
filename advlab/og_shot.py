@@ -36,7 +36,7 @@ async def main(url: str) -> None:
           .lower{position:fixed;left:520px;top:330px;width:640px;margin:0;display:block}
           .panel{padding:14px}.maps{grid-template-columns:1fr 1fr}.map{aspect-ratio:2/1}
         """)
-        await page.evaluate("""document.body.insertAdjacentHTML('beforeend','<div style="position:fixed;left:48px;bottom:48px;font:500 18px JetBrains Mono,monospace;color:#8b93a1"><b style=color:#eef1f5>niansia.github.io</b> · adversarial lab</div>')""")
+        await page.evaluate("""document.body.insertAdjacentHTML('beforeend','<div style="position:fixed;left:48px;bottom:48px;font:500 18px JetBrains Mono,monospace;color:#8b93a1"><b style=color:#eef1f5>niansia.com</b> · adversarial lab</div>')""")
         await page.wait_for_timeout(400)
         png = OUT.with_suffix(".png")
         await page.screenshot(path=str(png))

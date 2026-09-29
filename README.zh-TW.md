@@ -6,7 +6,7 @@
 
 Adversarial Lab 是一個在瀏覽器裡執行的 L∞ 對抗攻擊實驗場，對象是手寫數字分類器。你可以自己畫一個數字，或從 MNIST 測試集挑一個，用 FGSM、PGD 或指定目標的 PGD 攻擊它，一步一步看預測怎麼被翻轉。接著對一個用 PGD 對抗訓練過的模型做同樣的攻擊，再用決策地圖說明為什麼一個會被攻破、另一個不會。所有運算（包含攻擊所需的梯度）都在訪客自己的 CPU 上完成，不會上傳任何資料。
 
-**線上試玩：[niansia.github.io/lab/adversarial](https://niansia.github.io/lab/adversarial/zh-tw/)**（英文、繁體中文、簡體中文）
+**線上試玩：[niansia.com/lab/adversarial](https://niansia.com/lab/adversarial/zh-tw/)**（英文、繁體中文、簡體中文）
 
 ![PGD 攻擊讓一般模型把 7 認成 3；兩個模型的決策地圖](docs/preview.jpg)
 

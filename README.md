@@ -6,7 +6,7 @@
 
 Adversarial Lab is an in-browser playground for L∞ adversarial attacks on a handwritten-digit classifier. Draw a digit or pick one from the MNIST test set, attack it with FGSM, PGD or targeted PGD, and watch the prediction flip step by step. The same attack is then tried on a model trained with PGD adversarial training, and a decision map shows why one model breaks and the other does not. Everything, including the gradients the attacks follow, is computed on the visitor's CPU; nothing is uploaded.
 
-**Live demo: [niansia.github.io/lab/adversarial](https://niansia.github.io/lab/adversarial/)** (English, 繁體中文, 简体中文)
+**Live demo: [niansia.com/lab/adversarial](https://niansia.com/lab/adversarial/)** (English, 繁體中文, 简体中文)
 
 ![A PGD attack turns a 7 into a 3 for the standard model; the decision maps of both models](docs/preview.jpg)
 
@@ -95,7 +95,7 @@ web/        the demo page, the JavaScript engine, the decision-map worker, weigh
 docs/       preview image
 ```
 
-The live copy on niansia.github.io is the same page with absolute asset paths.
+The live copy on niansia.com is the same page with absolute asset paths.
 
 ## Limits
 
